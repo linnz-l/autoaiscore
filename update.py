@@ -7,7 +7,7 @@ import openai
 
 # ================= 核心配置区域 =================
 # 1. 替换为你自己在 PubMed 生成的 RSS 订阅链接
-rss_url = 'https://pubmed.ncbi.nlm.nih.gov/rss/search/18V6sNfK72Vz_wLWhrN4wXqD_mO0z-7Yn-Dq8YxZf_sH6E3p_m/?limit=100'
+rss_url = "https://pubmed.ncbi.nlm.nih.gov/rss/search/?term=nutrition+%5Bjournal%5D+OR+%22American+Journal+of+Clinical+Nutrition%22+%5Bjournal%5D+OR+%22Journal+of+Nutrition%22+%5Bjournal%5D&limit=20"
 
 # 2. 定制你的 AI 评审角色（在此处修改你的学科领域，比如把环境科学改成你的专业）
 SYSTEM_PROMPT = "You are a leading nutrition science expert and clinical dietitian. You are skilled at selecting robust, high-quality, and groundbreaking nutritional research, clinical trials, and dietary studies."
