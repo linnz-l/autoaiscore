@@ -5,20 +5,29 @@ import requests
 import os
 import openai
 
-# Example PubMed RSS feed URL
-rss_url = 'https://pubmed.ncbi.nlm.nih.gov/rss/search/1rUyv9-0xUixl8iP0hZRiJDvvzoO2ncrWKy4nWspV6YYVdU1FG/?limit=15&utm_campaign=pubmed-2&fc=20250205104849'
+# ================= 核心配置区域 =================
+# 1. 替换为你自己在 PubMed 生成的 RSS 订阅链接
+rss_url = 'https://pubmed.ncbi.nlm.nih.gov/rss/search/12cYCaYYmd3PKH1TcODuh5Cr7776fWscbUhYnAwoSRATXNoE-E/?limit=100&utm_campaign=pubmed-2&fc=20250204112327'
+
+# 2. 定制你的 AI 评审角色（在此处修改你的学科领域，比如把环境科学改成你的专业）
+SYSTEM_PROMPT = "You are an environmental science expert and researcher. You are skilled at selecting interesting/novelty research."
+# ===============================================
 
 access_token = os.getenv('GITHUB_TOKEN')
 openaiapikey = os.getenv('OPENAI_API_KEY')
 
-client = openai.OpenAI(api_key=openaiapikey) # if you use deepseek api key, change to: client = openai.OpenAI(api_key=openaiapikey, base_url="https://api.deepseek.com")
+# 【关键改动】这里配置了 DeepSeek 的官方服务器地址
+client = openai.OpenAI(
+    api_key=openaiapikey,
+    base_url="https://api.deepseek.com/v1"
+)
 
 def extract_scores(text):
-    # Use OpenAI API to get Research Score and Social Impact Score separately. Change model to deepseek-chat for deepseek-v3
+    # 使用 DeepSeek 目前最高性价比的 V3 模型 (deepseek-chat)
     response = client.chat.completions.create(
-        model="gpt-4o-mini", 
+        model="deepseek-chat",
         messages=[
-            {"role": "system", "content": "You are an mass spectrometry expert and researcher. You are skilled at selecting interesting/novelty research."},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Given the text '{text}', evaluate this article with two scores:\n"
                                         "1. Research Score (0-100): Based on research innovation, methodological rigor, and data reliability.\n"
                                         "2. Social Impact Score (0-100): Based on public attention, policy relevance, and societal impact.\n"
@@ -32,44 +41,35 @@ def extract_scores(text):
 
     generated_text = response.choices[0].message.content.strip()  
 
-    # Extract research score
-    research_score_start = generated_text.find("Research Score:")
-    research_score = generated_text[research_score_start+len("Research Score:"):].split("\n")[0].strip()
+    # 提取评分提取
+    try:
+        research_score_start = generated_text.find("Research Score:")
+        research_score = generated_text[research_score_start+len("Research Score:"):].split("\n")[0].strip()
 
-    # Extract social impact score
-    social_impact_score_start = generated_text.find("Social Impact Score:")
-    social_impact_score = generated_text[social_impact_score_start+len("Social Impact Score:"):].strip()
+        social_impact_score_start = generated_text.find("Social Impact Score:")
+        social_impact_score = generated_text[social_impact_score_start+len("Social Impact Score:"):].strip()
+    except Exception:
+        research_score, social_impact_score = "N/A", "N/A"
 
     return research_score, social_impact_score
 
 def get_pubmed_abstracts(rss_url):
     abstracts_with_urls = []
-
-    # Parse the PubMed RSS feed
     feed = feedparser.parse(rss_url)
-
-    # Calculate the date one week ago
     one_week_ago = datetime.now(timezone.utc) - timedelta(weeks=1)
 
-    # Iterate over entries in the PubMed RSS feed and extract abstracts and URLs
     for entry in feed.entries:
-        # Get the publication date of the entry
         published_date = datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z')
-
-        # If the publication date is within one week, extract the abstract and URL
         if published_date >= one_week_ago:
-            # Get the abstract and DOI of the entry
             title = entry.title
-            abstract = entry.content[0].value
-            doi = entry.dc_identifier
+            abstract = entry.content[0].value if 'content' in entry else entry.summary
+            doi = entry.get('dc_identifier', 'No DOI available')
             abstracts_with_urls.append({"title": title, "abstract": abstract, "doi": doi})
 
     return abstracts_with_urls
 
-# Get the abstracts from the PubMed RSS feed
+# 获取并评分
 pubmed_abstracts = get_pubmed_abstracts(rss_url)
-
-# Create an empty list to store each abstract with its scores
 new_articles_data = []
 
 for abstract_data in pubmed_abstracts:
@@ -84,39 +84,29 @@ for abstract_data in pubmed_abstracts:
         "doi": doi
     })
     
-# Create issue title and content
-issue_title = f"Weekly Article Score - {datetime.now().strftime('%Y-%m-%d')}"
+# 生成 Issue 内容
+issue_title = f"Weekly Article Matching (DeepSeek) - {datetime.now().strftime('%Y-%m-%d')}"
 issue_body = "Below are the article matching results from the past week:\n\n"
 
 for article_data in new_articles_data:
-    abstract = article_data["title"]
-    research_score = article_data["research_score"]
-    social_impact_score = article_data["social_impact_score"]
-    doi = article_data.get("doi", "No DOI available")  # Default to "No DOI available" if DOI field is missing
-
-    issue_body += f"- **Title**: {abstract}\n"
-    issue_body += f"  **Research Score**: {research_score}\n"
-    issue_body += f"  **Social Impact Score**: {social_impact_score}\n"
-    issue_body += f"  **DOI**: {doi}\n\n"
+    issue_body += f"- **Title**: {article_data['title']}\n"
+    issue_body += f"  **Research Score**: {article_data['research_score']}\n"
+    issue_body += f"  **Social Impact Score**: {article_data['social_impact_score']}\n"
+    issue_body += f"  **DOI**: {article_data['doi']}\n\n"
 
 def create_github_issue(title, body, access_token):
-    url = f"https://api.github.com/repos/[YourGitHubUserName]/autoaiscore/issues"
+    # 动态获取当前仓库路径，自动推送到你的当前仓库 issue 中
+    repo = os.getenv('GITHUB_REPOSITORY')
+    url = f"https://api.github.com/repos/{repo}/issues"
     headers = {
         "Authorization": f"token {access_token}",
         "Accept": "application/vnd.github.v3+json"
     }
-    payload = {
-        "title": title,
-        "body": body
-    }
-
+    payload = {"title": title, "body": body}
     response = requests.post(url, headers=headers, data=json.dumps(payload))
-
     if response.status_code == 201:
         print("Issue created successfully!")
     else:
-        print("Failed to create issue. Status code:", response.status_code)
-        print("Response:", response.text)
+        print("Failed to create issue:", response.text)
 
-# Create the issue
 create_github_issue(issue_title, issue_body, access_token)
