@@ -7,10 +7,10 @@ import openai
 
 # ================= 核心配置区域 =================
 # 1. 替换为你自己在 PubMed 生成的 RSS 订阅链接
-rss_url = 'https://pubmed.ncbi.nlm.nih.gov/rss/search/12cYCaYYmd3PKH1TcODuh5Cr7776fWscbUhYnAwoSRATXNoE-E/?limit=100&utm_campaign=pubmed-2&fc=20250204112327'
+rss_url = 'https://pubmed.ncbi.nlm.nih.gov/rss/search/18V6sNfK72Vz_wLWhrN4wXqD_mO0z-7Yn-Dq8YxZf_sH6E3p_m/?limit=100'
 
 # 2. 定制你的 AI 评审角色（在此处修改你的学科领域，比如把环境科学改成你的专业）
-SYSTEM_PROMPT = "You are an environmental science expert and researcher. You are skilled at selecting interesting/novelty research."
+SYSTEM_PROMPT = "You are a leading nutrition science expert and clinical dietitian. You are skilled at selecting robust, high-quality, and groundbreaking nutritional research, clinical trials, and dietary studies."
 # ===============================================
 
 access_token = os.getenv('GITHUB_TOKEN')
